@@ -1,0 +1,33 @@
+name: SEPHORiA resale watcher
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 minutes (GitHub may delay runs a little)
+  workflow_dispatch:          # lets you run it manually from the Actions tab
+
+permissions:
+  contents: write            # needed to save the page fingerprint between runs
+
+concurrency:
+  group: watcher
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+      - run: python monitor.py
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      - name: Save fingerprint
+        run: |
+          git config user.name "watcher-bot"
+          git config user.email "watcher-bot@users.noreply.github.com"
+          git add state.txt
+          git diff --cached --quiet || (git commit -m "update fingerprint" && git push)
